@@ -1,0 +1,37 @@
+[
+    {
+        "id": "prod_001",
+        "name": "Premium Wireless Headphones",
+        "description": "Noise-cancelling over-ear headphones with 30-hour battery life.",
+        "price": 299.99,
+        "stock": 50
+    },
+    {
+        "id": "prod_002",
+        "name": "Smart Fitness Watch",
+        "description": "Track your steps, heart rate, and sleep with this sleek smartwatch.",
+        "price": 199.50,
+        "stock": 120
+    },
+    {
+        "id": "prod_003",
+        "name": "Portable Bluetooth Speaker",
+        "description": "Waterproof speaker with deep bass and 10-hour playtime.",
+        "price": 79.00,
+        "stock": 200
+    },
+    {
+        "id": "prod_004",
+        "name": "Ergonomic Mechanical Keyboard",
+        "description": "Tactile mechanical keyboard with customizable RGB lighting.",
+        "price": 149.99,
+        "stock": 75
+    },
+    {
+        "id": "prod_005",
+        "name": "Ultra HD 4K Monitor",
+        "description": "32-inch monitor with HDR support and color accuracy.",
+        "price": 599.00,
+        "stock": 30
+    }
+]
