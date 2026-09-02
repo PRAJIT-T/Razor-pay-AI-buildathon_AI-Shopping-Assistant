@@ -1,5 +1,6 @@
 import os
 import razorpay
+import uuid
 from config import RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET
 
 class RazorpayClient:
@@ -12,8 +13,7 @@ class RazorpayClient:
         Initializes the Razorpay client with API keys.
         """
         self.client = razorpay.Client(
-            key_id=RAZORPAY_KEY_ID,
-            key_secret=RAZORPAY_KEY_SECRET
+            auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET)
         )
 
     def create_order(self, amount: float, currency: str = "INR") -> dict:
@@ -29,9 +29,11 @@ class RazorpayClient:
         """
         try:
             order = self.client.order.create(
-                amount=amount,
-                currency=currency,
-                receipt="order_receipt_id" # Placeholder for a unique receipt ID
+                data={
+                "amount":int(amount),
+                "currency":currency,
+                "receipt": f"test_{uuid.uuid4().hex[:12]}" 
+                }
             )
             return order
         except Exception as e:

@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from typing import Dict, Any
 
 # In a real application, this would write to a database or a dedicated log file.
@@ -11,13 +12,13 @@ def log_state_mutation(entity_type: str, action: str, data: Dict[str, Any]):
     This function is a pure function that records the event.
     """
     log_entry = {
-        "timestamp": "2023-10-27T10:00:00Z", # Mock timestamp
+        "timestamp": datetime.now().isoformat(), # Mock timestamp
         "entity_type": entity_type,
         "action": action,
         "data": data
     }
     _audit_log.append(log_entry)
-    print(f"AUDIT LOGGED: {entity_type} {action} - {json.dumps(data, indent=2)}")
+    print(f"AUDIT LOGGED: {entity_type} {action} - {json.dumps(data, indent=2, default=str)}")
 
 def get_audit_log() -> list:
     """

@@ -26,6 +26,12 @@ class Cart(BaseModel):
     total_amount: float
     created_at: datetime
 
+class OrderStatus(str,Enum):
+    PENDING = "pending"
+    PAID="paid"
+    SHIPPED="shipped"
+    CANCELLED="cancelled"
+
 
 class Order(BaseModel):
     """Represents a customer order."""
@@ -33,7 +39,7 @@ class Order(BaseModel):
     customer_id: str
     items: List[CartItem]
     total_amount: float
-    status: str  # e.g., 'pending', 'paid', 'shipped', 'cancelled'
+    status: OrderStatus  # e.g., 'pending', 'paid', 'shipped', 'cancelled'
     created_at: datetime
     updated_at: datetime
     razorpay_order_id: Optional[str] = None

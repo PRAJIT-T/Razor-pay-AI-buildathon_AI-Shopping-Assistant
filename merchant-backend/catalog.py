@@ -1,8 +1,7 @@
 import json
 import os
-from typing import List, Dict, Any
-from pydantic import BaseModel
-from c:\Users\praji\OneDrive\Desktop\RP\merchant-backend.models import Product # Assuming models are in the same package structure
+from typing import List
+from models import Product 
 
 # Define the path to the catalog file
 CATALOG_PATH = os.path.join(
