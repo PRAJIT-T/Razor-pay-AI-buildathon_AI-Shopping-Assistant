@@ -31,9 +31,7 @@ from mcp.server.context import ServerRequestContext
 # Merchant backend imports
 # ---------------------------------------------------------
 
-from catalog import get_all_products, get_product_by_id
-from cart import create_cart, add_item
-from orders import checkout, get_order_status
+import httpx
 
 
 # ---------------------------------------------------------
@@ -212,31 +210,31 @@ async def handle_call_tool(
             query = arguments.get("query", "")
             max_price = arguments.get("max_price")
 
-            products = get_all_products()
+            params = {
+                "query": query
+            }
 
-            results = []
+            if max_price is not None:
+                params["max_price"] = max_price
 
-            for product in products:
-
-                matches_query = (
-                    query.lower() in product.name.lower()
-                    or query.lower() in product.description.lower()
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    "http://127.0.0.1:8000/products",
+                    params=params
                 )
 
-                matches_price = (
-                    max_price is None
-                    or product.price <= max_price
-                )
+            response.raise_for_status()
 
-                if matches_query and matches_price:
-
-                    results.append(product.model_dump())
+            data = response.json()
 
             return types.CallToolResult(
                 content=[
                     types.TextContent(
                         type="text",
-                        text=json.dumps(results, default=str)
+                        text=json.dumps(
+                            data["products"],
+                            default=str
+                        )
                     )
                 ]
             )
@@ -250,10 +248,12 @@ async def handle_call_tool(
 
             product_id = arguments["product_id"]
 
-            product = get_product_by_id(product_id)
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"http://127.0.0.1:8000/products/{product_id}"
+                )
 
-            if product is None:
-
+            if response.status_code == 404:
                 return types.CallToolResult(
                     content=[
                         types.TextContent(
@@ -266,12 +266,16 @@ async def handle_call_tool(
                     is_error=True
                 )
 
+            response.raise_for_status()
+
+            product = response.json()
+
             return types.CallToolResult(
                 content=[
                     types.TextContent(
                         type="text",
                         text=json.dumps(
-                            product.model_dump(),
+                            product,
                             default=str
                         )
                     )
@@ -285,12 +289,14 @@ async def handle_call_tool(
 
         elif params.name == "start_cart":
 
-            cart = create_cart()
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "http://127.0.0.1:8000/carts"
+                )
 
-            result = {
-                "cart_id": cart.id,
-                "items": []
-            }
+            response.raise_for_status()
+
+            result = response.json()
 
             return types.CallToolResult(
                 content=[
@@ -312,25 +318,26 @@ async def handle_call_tool(
             product_id = arguments["product_id"]
             quantity = arguments["quantity"]
 
-            cart = add_item(
-                cart_id,
-                product_id,
-                quantity
-            )
-
-            result = {
-                "cart_id": cart_id,
-                "items": [
-                    item.model_dump()
-                    for item in cart.values()
-                ]
+            payload = {
+                "product_id": product_id,
+                "quantity": quantity
             }
+
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"http://127.0.0.1:8000/carts/{cart_id}/items",
+                    json=payload
+                )
+
+            response.raise_for_status()
+
+            result = response.json()
 
             return types.CallToolResult(
                 content=[
                     types.TextContent(
                         type="text",
-                        text=json.dumps(result, default=str)
+                        text=json.dumps(result)
                     )
                 ]
             )
@@ -344,7 +351,15 @@ async def handle_call_tool(
 
             cart_id = arguments["cart_id"]
 
-            result = checkout(cart_id)
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "http://127.0.0.1:8000/checkout",
+                    params={"cart_id": cart_id}
+                )
+
+            response.raise_for_status()
+
+            result = response.json()
 
             return types.CallToolResult(
                 content=[
@@ -361,10 +376,16 @@ async def handle_call_tool(
         # ---------------------------------------------
 
         elif params.name == "get_order_status":
-
             order_id = arguments["order_id"]
 
-            result = get_order_status(order_id)
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"http://127.0.0.1:8000/orders/{order_id}/status"
+                )
+
+            response.raise_for_status()
+
+            result = response.json()
 
             return types.CallToolResult(
                 content=[

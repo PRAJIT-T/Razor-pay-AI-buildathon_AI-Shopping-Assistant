@@ -40,21 +40,38 @@ class RazorpayClient:
             print(f"Error creating Razorpay order: {e}")
             return {"error": str(e)}
 
-    def verify_payment(self, payment_id: str) -> dict:
-        """
-        Verifies a payment using its ID.
-
-        Args:
-            payment_id: The ID of the payment to verify.
-
+    def verify_payment_signature(
+        self,
+        razorpay_order_id: str,
+        razorpay_payment_id: str,
+        razorpay_signature: str
+    ) -> bool:
+        """ Verifies that the payment response came from Razorpay
+        and was not tampered with.
         Returns:
-            A dictionary containing the payment details.
+            True if the signature is valid.
+            Raises an exception if verification fails. """
+        
+        self.client.utility.verify_payment_signature({
+            "razorpay_order_id": razorpay_order_id,
+            "razorpay_payment_id": razorpay_payment_id,
+            "razorpay_signature": razorpay_signature
+        })
+
+        return True
+
+    def fetch_payment(self, payment_id: str) -> dict:
+        """
+        Fetches the actual Razorpay Payment object using its payment ID.
+
+        This is used after signature verification to check
+        the actual payment status.
         """
         try:
             payment = self.client.payment.fetch(payment_id)
             return payment
         except Exception as e:
-            print(f"Error verifying payment: {e}")
+            print(f"Error fetching payment: {e}")
             return {"error": str(e)}
 
 # Example usage (for testing purposes, not part of the final module)

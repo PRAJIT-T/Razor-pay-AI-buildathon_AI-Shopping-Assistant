@@ -44,6 +44,22 @@ def create_new_order(
     _ORDERS[new_order.id] = new_order
     return new_order
 
+def get_order(order_id: str) -> Order:
+    if order_id not in _ORDERS:
+        raise ValueError(f"Order '{order_id}' not found.")
+
+    return _ORDERS[order_id]
+
+def get_order_by_razorpay_id(razorpay_order_id: str) -> Order:
+    for order in _ORDERS.values():
+        if order.razorpay_order_id == razorpay_order_id:
+            return order
+
+    raise ValueError(
+        f"Order with Razorpay order ID '{razorpay_order_id}' not found."
+    )
+
+
 def get_order_status(order_id: str) -> dict:
     if order_id not in _ORDERS:
         raise ValueError(f"Order '{order_id}' not found.")
