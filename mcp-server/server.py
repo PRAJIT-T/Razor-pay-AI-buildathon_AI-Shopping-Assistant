@@ -131,6 +131,24 @@ TOOLS = [
     ),
 
     types.Tool(
+        name="get_cart",
+        description=(
+            "Get the current contents of a shopping cart. "
+            "This is a read-only operation."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "cart_id": {
+                    "type": "string",
+                    "description": "The shopping cart ID."
+                }
+            },
+            "required": ["cart_id"]
+        }
+    ),
+
+    types.Tool(
         name="checkout",
         description=(
             "Checkout the shopping cart and create a Razorpay payment order. "
@@ -338,6 +356,32 @@ async def handle_call_tool(
                     types.TextContent(
                         type="text",
                         text=json.dumps(result)
+                    )
+                ]
+            )
+
+        # ---------------------------------------------
+        # GET CART
+        # ---------------------------------------------
+
+        elif params.name == "get_cart":
+
+            cart_id = arguments["cart_id"]
+
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"http://127.0.0.1:8000/carts/{cart_id}"
+                )
+
+            response.raise_for_status()
+
+            result = response.json()
+
+            return types.CallToolResult(
+                content=[
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(result, default=str)
                     )
                 ]
             )

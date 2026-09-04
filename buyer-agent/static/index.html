@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>AI Buyer</title>
+
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+
+    <div class="app">
+
+        <header class="header">
+            <div>
+                <h1>AI Buyer</h1>
+                <p>Your AI shopping assistant</p>
+            </div>
+
+            <div class="status">
+                <span class="status-dot"></span>
+                Online
+            </div>
+        </header>
+
+
+        <main id="chat" class="chat">
+
+            <div class="message ai">
+                <div class="avatar">AI</div>
+
+                <div class="bubble">
+                    Hey! 👋 I'm your AI Buyer.
+
+                    <br><br>
+
+                    Tell me what you're looking for and I'll help you find it.
+                </div>
+            </div>
+
+        </main>
+
+
+        <div class="input-area">
+
+            <input
+                id="messageInput"
+                type="text"
+                placeholder="What are you looking for?"
+                autocomplete="off"
+            >
+
+            <button id="sendButton">
+                Send
+            </button>
+
+        </div>
+
+    </div>
+
+    <script src="/static/app.js"></script>
+
+</body>
+</html>

@@ -17,66 +17,137 @@ from agents.mcp import MCPServerStdio
 set_tracing_disabled(True)
 
 
-async def main():
+class BuyerAgent:
+    def __init__(self):
+        self.client = AsyncOpenAI(
+            base_url="http://127.0.0.1:9931/v1",
+            api_key="local",
+        )
 
-    # Connect to llama.cpp's OpenAI-compatible API
-    client = AsyncOpenAI(
-        base_url="http://127.0.0.1:9931/v1",
-        api_key="local",
-    )
+        # Keeps conversation history across chat requests.
+        self.session = SQLiteSession("buyer_demo")
 
-    session = SQLiteSession("buyer_demo")
+        self.mcp_server = None
+        self.agent = None
 
-    # Connect to our existing MCP server
-    async with MCPServerStdio(
-        name="Merchant MCP Server",
-        params={
-            "command": "python",
-            "args": [
-                "../mcp-server/server.py"
-            ],
-        },
-    ) as mcp_server:
+    async def start(self):
+        """
+        Start the MCP connection and create the AI Buyer agent.
+        """
 
-        agent = Agent(
+        self.mcp_server = MCPServerStdio(
+            name="Merchant MCP Server",
+            params={
+                "command": "python",
+                "args": [
+                    "../mcp-server/server.py"
+                ],
+            },
+        )
+
+        await self.mcp_server.__aenter__()
+
+        self.agent = Agent(
             name="AI Buyer",
 
             instructions="""
 You are an AI shopping assistant.
 
-Your job is to help the user find products and manage their shopping cart
-using the available merchant MCP tools.
+Your job is to help the user discover products, manage their shopping cart,
+and complete purchases using the available merchant MCP tools.
 
 Rules:
-- Use the MCP tools to obtain real product and cart information.
-- Never invent products, prices, stock, cart contents, or order statuses.
-- Before calling checkout, clearly tell the user the final cart contents
-  and total amount and obtain explicit confirmation.
+- Always use the MCP tools to obtain real product, cart, and order information.
+- Never invent products, prices, stock, cart contents, order IDs, or order statuses.
+- Remember the context of the conversation and resolve references such as
+  "that", "this product", and "add it" using previous messages.
+- Do not ask the user for internal IDs such as product IDs, cart IDs, or order IDs
+  when you already have the required information from the conversation or tools.
+
+Cart display:
+- When the user asks about their cart, retrieve the actual cart information
+  using the appropriate MCP tool.
+- Present the cart as a concise shopping summary.
+- Use this format:
+
+  🛒 Your Cart
+
+  • Product Name × quantity — ₹price
+
+  Total: ₹total
+
+- If the cart is empty, clearly say that the cart is empty.
+- Do not unnecessarily ask whether the user wants to checkout after every
+  cart lookup. Only mention checkout when it is relevant to the conversation.
+
+Checkout:
+- Before calling checkout, clearly show the final cart contents and total.
+- Ask the user for explicit confirmation before calling checkout.
+- If the user clearly confirms checkout after the final cart summary,
+  treat that as explicit confirmation.
+- Once checkout is called, report the actual order information returned by
+  the merchant system.
 - Never claim that an order is paid unless the merchant system reports it
   as paid.
+- If the order is pending payment, clearly tell the user that payment still
+  needs to be completed.
 """,
 
             model=OpenAIChatCompletionsModel(
                 model="D:\\models\\gemma-4-E4B-it-qat-UD-Q4_K_XL.gguf",
-                openai_client=client,
+                openai_client=self.client,
             ),
 
-            mcp_servers=[mcp_server],
+            mcp_servers=[self.mcp_server],
         )
 
+    async def chat(self, user_message: str) -> str:
+        """
+        Send one user message to the AI Buyer and return its response.
+        """
+
+        if self.agent is None:
+            raise RuntimeError("BuyerAgent has not been started.")
+
+        result = await Runner.run(
+            self.agent,
+            user_message,
+            session=self.session,
+        )
+
+        return result.final_output
+
+    async def stop(self):
+        """
+        Cleanly close the MCP connection.
+        """
+
+        if self.mcp_server is not None:
+            await self.mcp_server.__aexit__(None, None, None)
+
+        await self.client.close()
+
+
+async def main():
+
+    buyer = BuyerAgent()
+
+    await buyer.start()
+
+    try:
         while True:
+
             user_message = input("\nYou: ")
 
             if user_message.lower() in ["exit", "quit"]:
                 break
 
-            result = await Runner.run(
-                agent,
-                user_message,
-                session=session
-            )
+            response = await buyer.chat(user_message)
 
-            print("\nAI:", result.final_output)
+            print("\nAI:", response)
+
+    finally:
+        await buyer.stop()
 
 
 if __name__ == "__main__":

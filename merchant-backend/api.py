@@ -99,6 +99,26 @@ def add_cart_item(
         "total_amount": get_cart_total_price(cart)
     }
 
+@app.get("/carts/{cart_id}")
+def get_cart_api(cart_id: str):
+    try:
+        cart = get_cart(cart_id)
+
+        return {
+            "cart_id": cart_id,
+            "items": [
+                item.model_dump()
+                for item in cart.values()
+            ],
+            "total_amount": get_cart_total_price(cart)
+        }
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=404,
+            detail=str(e)
+        )
+    
 @app.post("/checkout")
 def checkout_cart(cart_id: str):
     return checkout(cart_id)
@@ -174,13 +194,27 @@ def payment_page(order_id: str):
                         return;
                     }}
 
-                    alert(
-                        "Payment verified successfully!\\n" +
-                        "Order: " + result.order_id + "\\n" +
-                        "Status: " + result.status
+
+                    
+        if (window.opener && !window.opener.closed) {{
+                    window.opener.postMessage(
+                        {{
+                            type: "PAYMENT_SUCCESS",
+                            orderId: result.order_id,
+                            paymentId: result.razorpay_payment_id
+                        }},
+                        "http://127.0.0.1:9000"
                     );
 
-                    window.location.reload();
+                    // Close this payment tab.
+                    window.close();
+                            }}
+        else {{
+                window.location.href =
+                    "http://127.0.0.1:9000/?payment=success" +
+                    "&order_id=" + encodeURIComponent(result.order_id);
+            }}
+
                 }}
             }};
 

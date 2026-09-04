@@ -153,9 +153,10 @@ def checkout(cart_id: str) -> dict:
 
         # 6. Return both local and Razorpay order details
         return {
-            "order": new_order.model_dump(),
-            "razorpay_order": razorpay_order
-        }
+        "order": new_order.model_dump(),
+        "razorpay_order": razorpay_order,
+        "payment_url": f"http://127.0.0.1:8000/pay/{new_order.id}"
+}
 
     except Exception as e:
         print(f"Checkout failed due to an internal error: {e}")
