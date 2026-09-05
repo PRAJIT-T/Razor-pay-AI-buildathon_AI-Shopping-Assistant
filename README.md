@@ -141,3 +141,136 @@ Only after these checks succeed is the local order transitioned to:
 
 ```text
 PAID
+
+Order Lifecycle
+
+Orders use controlled states to ensure that payment and order status remain consistent.
+
+PENDING
+   |
+   | Successful server-side payment verification
+   v
+PAID
+
+Pending orders can also be cancelled:
+
+PENDING
+   |
+   | Cancellation
+   v
+CANCELLED
+
+Cancellation is intentionally restricted to unpaid pending orders.
+
+A paid order is not cancelled through this operation because a paid order would require a separate refund workflow.
+
+Audit Trail
+
+The merchant backend maintains an audit trail of state-changing operations.
+
+The audit log records:
+
+Timestamp
+Entity
+Action
+Associated data
+
+Examples include:
+
+Order created
+Razorpay order created
+Order updated -> PAID
+Order cancelled
+
+The audit log can be retrieved through the merchant API and exposed to the AI through the get_audit_log MCP tool.
+
+This provides traceability for important commerce and payment state transitions.
+
+System Architecture
+                         USER
+                           |
+                           v
+                  +----------------+
+                  |   AI Buyer UI  |
+                  | Browser / Chat |
+                  +----------------+
+                           |
+                           v
+                  +----------------+
+                  | buyer-agent    |
+                  |    api.py      |
+                  |    :9000       |
+                  +----------------+
+                           |
+                           v
+                  +----------------+
+                  |  Buyer Agent   |
+                  |  Local Gemma   |
+                  +----------------+
+                           |
+                           | MCP
+                           v
+                  +----------------+
+                  |   MCP Server   |
+                  |    server.py   |
+                  +----------------+
+                           |
+                           | HTTP
+                           v
+                  +----------------+
+                  | Merchant       |
+                  | Backend :8000  |
+                  +----------------+
+                    /      |       \
+                   /       |        \
+                  v        v         v
+             Catalog     Cart      Orders
+                                      |
+                                      v
+                                    Audit
+                                      |
+                                      v
+                              Razorpay Client
+                                      |
+                                      v
+                              Razorpay Test Mode
+                                      |
+                                      v
+                              Razorpay Checkout
+                                      |
+                                      v
+                           Server-side Verification
+                                      |
+                                      v
+                                 Order -> PAID
+Project Structure
+AI-Buyer-Agent/
+│
+├── buyer-agent/
+│   ├── api.py
+│   ├── agent.py
+│   │
+│   └── static/
+│       ├── index.html
+│       ├── style.css
+│       └── app.js
+│
+├── mcp-server/
+│   └── server.py
+│
+├── merchant-backend/
+│   ├── api.py
+│   ├── audit.py
+│   ├── cart.py
+│   ├── catalog.py
+│   ├── config.py
+│   ├── models.py
+│   ├── orders.py
+│   ├── razorpay_client.py
+│   │
+│   └── data/
+│       └── catalog.json
+│
+├── .env
+├── .gitignore
+└── README.md
