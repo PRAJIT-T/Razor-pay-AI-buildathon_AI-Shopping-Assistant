@@ -17,7 +17,7 @@ function addMessage(text, type , showPayButton= true) {
     // Find the real Order ID
     const orderMatch = text.match(/\bORD-[a-zA-Z0-9-]+\b/);
     const isPaymentPrompt = /pay|checkout|complete.*payment/i.test(text) && !/error|failed|cancel|audit/i.test(text);
-    
+
     if (orderMatch && showPayButton && isPaymentPrompt) {
         const orderId = orderMatch[0];
 
@@ -169,9 +169,9 @@ window.addEventListener("message", function(event) {
         const orderId = event.data.orderId;
 
         addMessage(
-            `-----Payment successful!\n\n-----` +
+            `-----Payment successful!-----\n\n` +
             `Your order ${orderId} has been paid and confirmed.\n\n` +
-            `Dont stop purchasing!`,
+            `Thankyou for purchasing!`,
             "ai",
             false
         );
