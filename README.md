@@ -1,8 +1,8 @@
-# AI Buyer Agent
+# AI Shopping Agent
 
-An AI-powered agentic commerce system built for the Razorpay AI Buildathon — Track 01: AI Growth & Agentic Commerce.
+An AI-powered agentic commerce system built for the **Razorpay AI Buildathon — Track 01: AI Growth & Agentic Commerce**.
 
-The system allows a user to shop using natural language. The AI Buyer can discover products, maintain a shopping cart, prepare an order, request explicit user confirmation before checkout, initiate a Razorpay Test Mode payment, and rely on server-side verification before an order is marked as paid.
+The system allows users to shop using natural language. The AI Buyer can discover products, maintain a shopping cart, prepare an order, request explicit user confirmation before checkout, initiate a Razorpay Test Mode payment, and rely on server-side verification before an order is marked as paid.
 
 The design focuses on making every money action:
 
@@ -16,15 +16,15 @@ The design focuses on making every money action:
 
 ## Overview
 
-Traditional e-commerce requires the user to manually search products, inspect details, manage a cart, and navigate through multiple checkout steps.
+Traditional e-commerce requires users to manually search for products, inspect details, manage a cart, and navigate through multiple checkout steps.
 
-This project introduces an AI Buyer Agent that acts as the conversational layer over a merchant commerce system.
+This project introduces an **AI Buyer Agent** that acts as a conversational layer over a merchant commerce system.
 
-A user can interact with the system using natural language such as:
+A user can interact with the system using natural language:
 
 > I need wireless headphones under ₹1000
 
-The AI searches the real merchant catalog through MCP, recommends suitable products, and maintains the conversation context.
+The AI searches the real merchant catalog through MCP, recommends suitable products, and maintains conversation context.
 
 The user can then say:
 
@@ -51,9 +51,7 @@ Examples:
 - "What's in my cart?"
 - "Checkout"
 
-The AI uses the merchant tools to obtain real catalog, cart, and order information rather than inventing values.
-
----
+The AI uses merchant tools to obtain real catalog, cart, and order information rather than inventing values.
 
 ### Conversational Context
 
@@ -64,15 +62,13 @@ The Buyer Agent maintains conversation history and can resolve references such a
 - "add it"
 - "the second one"
 
-This allows the shopping experience to remain conversational rather than requiring the user to repeatedly specify internal product identifiers.
-
----
+This allows the shopping experience to remain conversational without requiring users to repeatedly provide internal product identifiers.
 
 ### MCP-Based Tool Architecture
 
 The AI does not directly manipulate the merchant system.
 
-Instead, the Buyer Agent communicates with an MCP server that exposes controlled commerce operations.
+Instead, the Buyer Agent communicates with an **MCP server**, which exposes controlled commerce operations.
 
 Current MCP tools include:
 
@@ -86,41 +82,33 @@ Current MCP tools include:
 - `get_audit_log`
 - `get_order_status`
 
-Read-only operations are separated conceptually from state-changing operations, and checkout is explicitly treated as the operation that initiates the payment process.
-
----
+The MCP layer provides a controlled boundary between the AI agent and the merchant backend.
 
 ### Explicit Human Confirmation
 
-The AI cannot directly initiate checkout simply because the user discussed a product.
+Checkout requires an explicit human confirmation.
 
-Before checkout, the agent presents:
+Before calling the checkout operation, the agent presents:
 
-- Cart contents
+- Final cart contents
 - Quantities
 - Total amount
 
-The user must explicitly confirm before the checkout tool is called.
-
-This provides a human authorization gate immediately before the money-related action.
-
----
+The user must explicitly confirm before the payment flow is initiated.
 
 ### Spend Cap
 
 The merchant backend enforces a configured spending limit.
 
-If the checkout amount exceeds the configured spend cap, the checkout operation fails instead of allowing the payment flow to continue.
+If the checkout amount exceeds the configured spend cap, checkout fails instead of allowing the payment process to continue.
 
 This provides a deterministic financial boundary independent of the AI's response.
 
----
+### Razorpay Test Mode
 
-### Razorpay Test Mode Integration
+The project integrates **Razorpay Test Mode** for the payment flow.
 
-The system uses Razorpay Test Mode for the actual payment flow.
-
-The checkout process is:
+The process is:
 
 1. User confirms the final purchase.
 2. Buyer Agent calls the MCP checkout tool.
@@ -128,11 +116,11 @@ The checkout process is:
 4. Merchant backend creates the local order.
 5. Merchant backend creates a Razorpay payment order.
 6. The user completes payment through Razorpay Checkout.
-7. Razorpay returns the payment information.
+7. Payment information is returned to the merchant backend.
 8. The merchant backend verifies the payment server-side.
 9. Only after successful verification is the local order marked `PAID`.
 
-Creating a Razorpay order does not itself mean that the customer has paid.
+Creating a Razorpay order does **not** mean that the customer has paid.
 
 ---
 
@@ -149,7 +137,7 @@ The verification process checks:
 - The payment amount matches the local order amount.
 - The payment status is `captured`.
 
-Only after all required checks succeed is the local order transitioned to:
+Only after these checks succeed is the local order transitioned to:
 
 ```text
 PAID
