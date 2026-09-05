@@ -3,7 +3,7 @@ const input = document.getElementById("messageInput");
 const sendButton = document.getElementById("sendButton");
 
 
-function addMessage(text, type) {
+function addMessage(text, type , showPayButton= true) {
     const message = document.createElement("div");
     message.className = `message ${type}`;
 
@@ -14,23 +14,28 @@ function addMessage(text, type) {
     const bubble = document.createElement("div");
     bubble.className = "bubble";
 
-    // Detect payment URL
-    const urlRegex = /https?:\/\/127\.0\.0\.1:8000\/pay\/ORD-[a-zA-Z0-9-]+/;
+    // Find the real Order ID
+    const orderMatch = text.match(/\bORD-[a-zA-Z0-9-]+\b/);
+    const isPaymentPrompt = /pay|checkout|complete.*payment/i.test(text) && !/error|failed|cancel|audit/i.test(text);
+    
+    if (orderMatch && showPayButton && isPaymentPrompt) {
+        const orderId = orderMatch[0];
 
-    const match = text.match(urlRegex);
+        // Remove placeholder if AI used one
+        let displayText = text.replace(
+            /\[[^\]]*\]\([^)]*\)/g,
+            ""
+        ).trim();
 
-    if (match) {
-        const url = match[0];
-
-        // Show everything before the URL
-        const beforeUrl = text.substring(0, match.index);
-        bubble.appendChild(document.createTextNode(beforeUrl));
+        bubble.appendChild(
+            document.createTextNode(displayText)
+        );
 
         // Payment button
         const link = document.createElement("a");
-        link.href = url;
+
+        link.href = "#";
         link.textContent = "💳 Pay with Razorpay";
-        link.target = "_blank";
 
         link.style.display = "inline-block";
         link.style.marginTop = "10px";
@@ -40,13 +45,21 @@ function addMessage(text, type) {
         link.style.borderRadius = "8px";
         link.style.textDecoration = "none";
 
+        link.onclick = function(event) {
+            event.preventDefault();
+
+            const paymentUrl =
+                "http://127.0.0.1:8000/pay/" + orderId;
+
+            window.open(
+                paymentUrl,
+                "razorpay_payment",
+                "width=500,height=750"
+            );
+        };
+
         bubble.appendChild(link);
 
-        // Anything after the URL
-        const afterUrl = text.substring(match.index + url.length);
-        if (afterUrl) {
-            bubble.appendChild(document.createTextNode(afterUrl));
-        }
     } else {
         bubble.textContent = text;
     }
@@ -138,24 +151,46 @@ input.addEventListener("keydown", function(event) {
 
 });
 
-// Handle successful payment return from Razorpay
-// Receive verified payment confirmation from the Razorpay payment tab
-window.addEventListener("message", function (event) {
+// Receive verified payment confirmation
+// from the Razorpay payment window
 
-    if (event.origin !== "http://127.0.0.1:8000") {
+window.addEventListener("message", function(event) {
+
+    if (!event.data || (event.data.type !== "PAYMENT_SUCCESS" && event.data.type !== "PAYMENT_FAILED")) {
         return;
     }
 
-    if (!event.data || event.data.type !== "PAYMENT_SUCCESS") {
+    if (!event.data) {
         return;
     }
 
-    const orderId = event.data.orderId;
+    if (event.data.type === "PAYMENT_SUCCESS") {
 
-    addMessage(
-        `🎉 Payment successful!\n\n` +
-        `Your order ${orderId} has been paid and confirmed.\n\n` +
-        `Thank you for your purchase!`,
-        "ai"
-    );
+        const orderId = event.data.orderId;
+
+        addMessage(
+            `-----Payment successful!\n\n-----` +
+            `Your order ${orderId} has been paid and confirmed.\n\n` +
+            `Dont stop purchasing!`,
+            "ai",
+            false
+        );
+        const invoiceLink = document.createElement("a");
+        invoiceLink.href = `http://127.0.0.1:8000/orders/${orderId}/invoice`;
+        invoiceLink.target = "_blank";
+        invoiceLink.textContent = "Download invoice";
+        invoiceLink.style.display = "inline-block";
+        invoiceLink.style.marginTop = "8px";
+        invoiceLink.style.color = "#222";
+        chat.lastElementChild.querySelector(".bubble").appendChild(document.createElement("br"));
+        chat.lastElementChild.querySelector(".bubble").appendChild(invoiceLink);
+    }
+    if (event.data.type === "PAYMENT_FAILED") {
+        addMessage(
+            `Payment failed: ${event.data.reason}\n\nThe order is still pending — you can try paying again.`,
+            "ai",
+            false
+        );
+    }
+
 });

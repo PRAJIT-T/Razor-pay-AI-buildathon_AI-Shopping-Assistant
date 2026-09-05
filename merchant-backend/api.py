@@ -8,11 +8,13 @@ from orders import (
     get_order_status,
     get_order,
     get_order_by_razorpay_id,
-    update_order_status
+    update_order_status,
+    cancel_order
 )
 from catalog import get_all_products, get_product_by_id
 from models import OrderStatus
 from razorpay_client import RazorpayClient
+from audit import get_audit_log
 
 
 app = FastAPI(
@@ -118,10 +120,17 @@ def get_cart_api(cart_id: str):
             status_code=404,
             detail=str(e)
         )
-    
+
+@app.get("/audit-log")
+def audit_log():
+    return get_audit_log()
+   
 @app.post("/checkout")
 def checkout_cart(cart_id: str):
-    return checkout(cart_id)
+    try:
+        return checkout(cart_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.get("/orders/{order_id}/status")
 def get_order_status_api(order_id: str):
@@ -133,9 +142,94 @@ def get_order_status_api(order_id: str):
             detail=str(e)
         )
 
+@app.post("/orders/{order_id}/cancel")
+def cancel_order_api(order_id: str):
+    try:
+        order = cancel_order(order_id)
+        return {"order_id": order.id, "status": order.status.value}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+@app.get("/orders/{order_id}/invoice", response_class=HTMLResponse)
+def invoice(order_id: str):
+    try:
+        order = get_order(order_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+    if order.status != OrderStatus.PAID:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invoice only available for paid orders. Current status: {order.status.value}"
+        )
+
+    rows = "".join(
+        f"<tr><td>{item.product_id}</td><td>{item.quantity}</td><td>Rs. {item.price:.2f}</td><td>Rs. {item.price * item.quantity:.2f}</td></tr>"
+        for item in order.items
+    )
+
+    return f"""<!DOCTYPE html>
+    <html><head><meta charset="UTF-8"><title>Invoice {order.id}</title>
+    <style>
+    body {{ font-family: 'Segoe UI', Arial, sans-serif; background:#eef1f5; padding:40px; color:#1a1a1a; }}
+    .sheet {{ max-width:640px; margin:auto; background:#fff; padding:48px; border-radius:4px; box-shadow:0 1px 4px rgba(0,0,0,0.08); }}
+    .top {{ display:flex; justify-content:space-between; align-items:flex-start; border-bottom:2px solid #1a1a1a; padding-bottom:24px; margin-bottom:24px; }}
+    .brand {{ font-size:22px; font-weight:700; letter-spacing:0.5px; }}
+    .invoice-label {{ text-align:right; }}
+    .invoice-label h1 {{ font-size:26px; margin:0; letter-spacing:1px; }}
+    .invoice-label p {{ margin:4px 0 0; color:#666; font-size:13px; }}
+    .meta {{ display:flex; justify-content:space-between; margin-bottom:32px; font-size:13px; color:#444; }}
+    .meta div {{ line-height:1.6; }}
+    .meta strong {{ color:#111; }}
+    table {{ width:100%; border-collapse:collapse; margin-bottom:24px; }}
+    th {{ text-align:left; font-size:12px; text-transform:uppercase; letter-spacing:0.5px; color:#888; border-bottom:1px solid #ddd; padding:8px 6px; }}
+    td {{ padding:12px 6px; border-bottom:1px solid #eee; font-size:14px; }}
+    .totals {{ display:flex; justify-content:flex-end; }}
+    .totals table {{ width:260px; }}
+    .totals td {{ border:none; padding:6px; }}
+    .grand {{ font-size:18px; font-weight:700; border-top:2px solid #1a1a1a !important; }}
+    .footer {{ margin-top:36px; padding-top:16px; border-top:1px solid #eee; font-size:12px; color:#999; text-align:center; }}
+    </style>
+    </head>
+    <body>
+    <div class="sheet">
+        <div class="top">
+        <div class="brand">AI Buyer Merchant</div>
+        <div class="invoice-label">
+            <h1>INVOICE</h1>
+            <p>{order.id}</p>
+        </div>
+        </div>
+
+        <div class="meta">
+        <div><strong>Billed to</strong><br>Customer ({order.customer_id})</div>
+        <div style="text-align:right;"><strong>Date</strong><br>{order.updated_at.strftime('%d %b %Y, %I:%M %p')}</div>
+        </div>
+
+        <table>
+        <tr><th>Item</th><th>Qty</th><th>Unit Price</th><th>Amount</th></tr>
+        {rows}
+        </table>
+
+        <div class="totals">
+        <table>
+            <tr><td>Subtotal</td><td style="text-align:right;">Rs. {order.total_amount:.2f}</td></tr>
+            <tr class="grand"><td>Total Paid</td><td style="text-align:right;">Rs. {order.total_amount:.2f}</td></tr>
+        </table>
+        </div>
+
+        <div class="footer">Payment status: PAID &middot; Thank you for your purchase.</div>
+    </div>
+    </body>
+    </html>"""
+
 @app.get("/pay/{order_id}", response_class=HTMLResponse)
 def payment_page(order_id: str):
-    order = get_order(order_id)
+    try:
+        order = get_order(order_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    
 
     if order.status.value != "pending":
         raise HTTPException(
@@ -150,17 +244,99 @@ def payment_page(order_id: str):
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Complete Payment</title>
+        <title>Secure Checkout</title>
+
         <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+        <style>
+            * {{
+                box-sizing: border-box;
+            }}
+
+            body {{
+                margin: 0;
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-family: Arial, sans-serif;
+                background: #f5f7fb;
+                color: #222;
+            }}
+
+            .card {{
+                width: 420px;
+                max-width: 90%;
+                background: white;
+                padding: 36px;
+                border-radius: 18px;
+                box-shadow: 0 12px 40px rgba(0,0,0,0.10);
+                text-align: center;
+            }}
+
+            .icon {{
+                font-size: 42px;
+                margin-bottom: 16px;
+            }}
+
+            h1 {{
+                margin: 0 0 10px;
+                font-size: 24px;
+            }}
+
+            .subtitle {{
+                color: #666;
+                margin-bottom: 24px;
+            }}
+
+            .amount {{
+                font-size: 30px;
+                font-weight: bold;
+                margin: 20px 0;
+            }}
+
+            .status {{
+                color: #777;
+                font-size: 14px;
+            }}
+
+            .fallback {{
+                display: none;
+                margin-top: 20px;
+                padding: 12px 18px;
+                border: none;
+                border-radius: 8px;
+                background: #222;
+                color: white;
+                cursor: pointer;
+                font-size: 15px;
+            }}
+        </style>
     </head>
 
     <body>
-        <h1>Complete Payment</h1>
 
-        <p>Order ID: {order.id}</p>
-        <p>Amount: ₹{order.total_amount}</p>
+        <div class="card">
+            <div class="icon">🔐</div>
 
-        <button id="pay-button">Pay with Razorpay</button>
+            <h1>Secure Checkout</h1>
+
+            <div class="subtitle">
+                Your payment is being securely prepared.
+            </div>
+
+            <div class="amount">
+                ₹{order.total_amount:.2f}
+            </div>
+
+            <div class="status" id="status">
+                Opening Razorpay Checkout...
+            </div>
+
+            <button class="fallback" id="fallback">
+                Open Secure Checkout
+            </button>
+        </div>
 
         <script>
             const options = {{
@@ -171,60 +347,148 @@ def payment_page(order_id: str):
                 description: "AI Buyer Agent Purchase",
                 order_id: "{razorpay_order_id}",
 
-                handler: async function (response) {{
-                    console.log("Payment successful");
-                    console.log(response);
+                handler: async function(response) {{
 
-                    const verificationResponse = await fetch("/payments/verify", {{
-                        method: "POST",
-                        headers: {{
-                            "Content-Type": "application/json"
-                        }},
-                        body: JSON.stringify({{
-                            razorpay_payment_id: response.razorpay_payment_id,
-                            razorpay_order_id: response.razorpay_order_id,
-                            razorpay_signature: response.razorpay_signature
-                        }})
-                    }});
+                    document.getElementById("status").textContent =
+                        "Verifying your payment...";
 
-                    const result = await verificationResponse.json();
+                    try {{
 
-                    if (!verificationResponse.ok) {{
-                        alert("Payment verification failed: " + result.detail);
-                        return;
-                    }}
+                        const verificationResponse = await fetch(
+                            "/payments/verify",
+                            {{
+                                method: "POST",
+                                headers: {{
+                                    "Content-Type": "application/json"
+                                }},
+                                body: JSON.stringify({{
+                                    razorpay_payment_id:
+                                        response.razorpay_payment_id,
 
+                                    razorpay_order_id:
+                                        response.razorpay_order_id,
 
-                    
-        if (window.opener && !window.opener.closed) {{
-                    window.opener.postMessage(
-                        {{
-                            type: "PAYMENT_SUCCESS",
-                            orderId: result.order_id,
-                            paymentId: result.razorpay_payment_id
-                        }},
-                        "http://127.0.0.1:9000"
-                    );
-
-                    // Close this payment tab.
-                    window.close();
+                                    razorpay_signature:
+                                        response.razorpay_signature
+                                }})
                             }}
-        else {{
-                window.location.href =
-                    "http://127.0.0.1:9000/?payment=success" +
-                    "&order_id=" + encodeURIComponent(result.order_id);
-            }}
+                        );
 
+                        const result =
+                            await verificationResponse.json();
+
+                        if (!verificationResponse.ok) {{
+                            document.getElementById("status").textContent =
+                                "Payment verification failed.";
+
+                            alert(
+                                "Payment verification failed: " +
+                                result.detail
+                            );
+
+                            return;
+                        }}
+
+                        // Tell the original AI chat that payment
+                        // was successfully verified by our server.
+                        if (window.opener && !window.opener.closed) {{
+                                    window.opener.postMessage(
+                                    {{
+                                        type: "PAYMENT_SUCCESS",
+                                        orderId: result.order_id,
+                                        paymentId: result.razorpay_payment_id
+                                    }}, "*");
+                                }}
+
+                                document.body.innerHTML = `
+                                    <div style="
+                                        min-height:100vh;
+                                        display:flex;
+                                        align-items:center;
+                                        justify-content:center;
+                                        font-family:Arial,sans-serif;
+                                        background:linear-gradient(135deg,#e8f9f0,#f5f7fb);
+                                    ">
+                                        <div style="
+                                            background:white;
+                                            padding:44px;
+                                            border-radius:20px;
+                                            text-align:center;
+                                            box-shadow:0 16px 45px rgba(16,185,129,0.18);
+                                            border-top:5px solid #10b981;
+                                        ">
+                                            <div style="
+                                                width:64px;height:64px;
+                                                border-radius:50%;
+                                                background:#10b981;
+                                                color:white;
+                                                display:flex;align-items:center;justify-content:center;
+                                                font-size:32px;
+                                                margin:0 auto 18px;
+                                            ">✓</div>
+
+                                            <h1 style="color:#111;margin-bottom:8px;">Payment Verified</h1>
+                                            <p style="color:#555;">Your payment was successfully verified.</p>
+                                            <p style="margin-top:14px;">Order: <strong>${{result.order_id}}</strong></p>
+                                            <p style="color:#999;font-size:13px;margin-top:16px;">you can close this page and return to your Buyer assistan...</p>
+                                        </div>
+                                    </div>
+                                `;
+
+                    }} catch (error) {{
+
+                        document.getElementById("status").textContent =
+                            "Unable to verify payment.";
+
+                        alert(
+                            "Something went wrong while verifying payment."
+                        );
+                    }}
+                }},
+
+                modal: {{
+                    ondismiss: function() {{
+                        document.getElementById("status").textContent =
+                            "Payment was not completed.";
+
+                        // Do not mark the order as failed.
+                        // It remains PENDING and can be retried.
+                    }}
+                }},
+
+                theme: {{
+                    color: "#222222"
                 }}
             }};
 
             const rzp = new Razorpay(options);
+            rzp.on('payment.failed', function (response) {{
+            document.getElementById("status").textContent = "Payment failed.";
+            if (window.opener) {{
+                window.opener.postMessage({{
+                    type: "PAYMENT_FAILED",
+                    orderId: "{order.id}",
+                    reason: response.error.description
+                            }}, "*");
+                        }}
+                    }});
 
-            document.getElementById("pay-button").onclick = function(e) {{
+            // Automatically open Razorpay.
+            window.onload = function() {{
                 rzp.open();
-                e.preventDefault();
+
+                // Fallback in case the browser blocks automatic opening.
+                setTimeout(function() {{
+                    document.getElementById("fallback").style.display =
+                        "inline-block";
+                }}, 2500);
+            }};
+
+            document.getElementById("fallback").onclick = function() {{
+                rzp.open();
             }};
         </script>
+
     </body>
     </html>
     """

@@ -148,6 +148,25 @@ TOOLS = [
         }
     ),
 
+        types.Tool(
+        name="cancel_order",
+        description=(
+            "Cancel a pending order that has not been paid yet. "
+            "Only orders with status 'pending' can be cancelled. "
+            "This does not refund anything since no payment was made."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {
+                "order_id": {
+                    "type": "string",
+                    "description": "The order ID to cancel."
+                }
+            },
+            "required": ["order_id"]
+        }
+    ),
+
     types.Tool(
         name="checkout",
         description=(
@@ -169,6 +188,20 @@ TOOLS = [
                 }
             },
             "required": ["cart_id"]
+        }
+    ),
+
+    types.Tool(
+        name="get_audit_log",
+        description=(
+            "Get the full audit trail of every state-changing action "
+            "on the merchant system: carts created, items added, orders "
+            "created, payments verified, orders cancelled. Read-only."
+        ),
+        input_schema={
+            "type": "object",
+            "properties": {},
+            "required": []
         }
     ),
 
@@ -403,6 +436,64 @@ async def handle_call_tool(
 
             response.raise_for_status()
 
+            result = response.json()
+
+            return types.CallToolResult(
+                content=[
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(result, default=str)
+                    )
+                ]
+            )
+
+                # ---------------------------------------------
+        # CANCEL ORDER
+        # ---------------------------------------------
+
+        elif params.name == "cancel_order":
+
+            order_id = arguments["order_id"]
+
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"http://127.0.0.1:8000/orders/{order_id}/cancel"
+                )
+
+            if response.status_code == 400:
+                return types.CallToolResult(
+                    content=[
+                        types.TextContent(
+                            type="text",
+                            text=json.dumps({
+                                "error": response.json().get("detail", "Cancel failed.")
+                            })
+                        )
+                    ],
+                    is_error=True
+                )
+
+            response.raise_for_status()
+
+            result = response.json()
+
+            return types.CallToolResult(
+                content=[
+                    types.TextContent(
+                        type="text",
+                        text=json.dumps(result, default=str)
+                    )
+                ]
+            )
+
+        elif params.name == "get_audit_log":
+
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    "http://127.0.0.1:8000/audit-log"
+                )
+
+            response.raise_for_status()
             result = response.json()
 
             return types.CallToolResult(

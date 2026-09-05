@@ -102,6 +102,12 @@ def get_order_history(customer_id: str) -> List[Order]:
     # Mock implementation: return an empty list
     return []
 
+def cancel_order(order_id: str) -> Order:
+    order = get_order(order_id)
+    if order.status != OrderStatus.PENDING:
+        raise ValueError(f"Cannot cancel order in status '{order.status.value}'.")
+    return update_order_status(order_id, OrderStatus.CANCELLED)
+
 def checkout(cart_id: str) -> dict:
     from cart import get_cart
 
@@ -143,6 +149,8 @@ def checkout(cart_id: str) -> dict:
 
         # 4. Attach Razorpay order ID to local order
         new_order.razorpay_order_id = razorpay_order["id"]
+        from cart import clear_cart
+        clear_cart(cart_id)
 
         # 5. Audit successful Razorpay order creation
         log_state_mutation(

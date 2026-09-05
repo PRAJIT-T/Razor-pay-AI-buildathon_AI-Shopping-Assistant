@@ -16,10 +16,12 @@ def create_cart() -> Cart:
 
 def get_cart(cart_id: str) -> CartState:
     if cart_id not in _CARTS:
-        raise ValueError(f"Cart '{cart_id}' not found.")
+        _CARTS[cart_id] = {}
     return _CARTS[cart_id]
 
-
+def clear_cart(cart_id: str) -> None:
+    if cart_id in _CARTS:
+        _CARTS[cart_id] = {}
 
 def create_empty_cart() -> Cart:
     return Cart(
